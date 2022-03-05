@@ -3,19 +3,21 @@ const express = require('express');
 const bodyPaser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const { hash } = require('bcrypt');
+const saltRounds = 10;
 
 const app = express();
 
 app.use(express.static("public"));
-app.set('view engine','ejs');
+app.set('view engine', 'ejs');
 app.use(bodyPaser.urlencoded({
-    extended:true
+    extended: true
 }));
 
 mongoose.connect('mongodb://localhost:27017/userDB');
 
-const userSchema = new mongoose.Schema ({
+const userSchema = new mongoose.Schema({
     email: String,
     password: String
 });
@@ -24,58 +26,64 @@ const User = new mongoose.model("User", userSchema);
 
 
 // Rotas Get//
-app.get("/", (req, res)=>{
+app.get("/", (req, res) => {
     res.render("home");
 });
-app.get("/login", (req, res)=>{
+app.get("/login", (req, res) => {
     res.render("login");
 });
-app.get("/register", (req, res)=>{
+app.get("/register", (req, res) => {
     res.render("register");
 });
-app.get("/submit", (req, res)=>{
+app.get("/submit", (req, res) => {
     res.render("submit");
 });
-app.get("/logout",(req, res)=>{
+app.get("/logout", (req, res) => {
     res.redirect("/");
 });
 
 // Rotas Post //
-app.post("/register",(req, res)=>{
-    console.log(req.body);
-    const newUser = new User ({
+app.post("/register", (req, res) => {
+
+    bcrypt.hash(req.body.password, saltRounds, function (err, hash) {
+
+        const newUser = new User({
             email: req.body.username,
-            password: md5(req.body.password)
+            password: hash
         });
-        
-        newUser.save((err)=>{
-        if(err){
-            console.log(err);
-        };
-        if(!err){
-            res.render("secrets");
-        };
-    });
-});
 
-app.post("/login", (req, res)=>{
-    const username = req.body.username;
-    const password = md5(req.body.password);
-
-    User.findOne({email: username},(err, foundUser)=>{
-        if(err){
-            console.log(err);
-        };
-
-        if(foundUser){
-            if(foundUser.password === password){
+        newUser.save((err) => {
+            if (err) {
+                console.log(err);
+            };
+            if (!err) {
                 res.render("secrets");
-            }
-        };
+            };
+        });
     });
 
 });
 
-app.listen(3000, ()=>{
+app.post("/login", (req, res) => {
+
+    const username = req.body.username;
+    const password = req.body.password;
+
+    User.findOne({ email: username }, (err, foundUser) => {
+        if (err) {
+            console.log(err);
+        };
+
+        if (foundUser) {
+            bcrypt.compare(password, foundUser.password, function (err, result) {
+                if (result) {
+                    res.render("secrets");
+                };
+            });
+        };
+    });
+});
+
+app.listen(3000, () => {
     console.log(`Server is listening on port 3000`);
 });
