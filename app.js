@@ -8,6 +8,7 @@ const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const findOrCreate = require('mongoose-findorcreate');
+const FacebookStrategy = require('passport-facebook').Strategy;
 
 const app = express();
 
@@ -32,7 +33,8 @@ mongoose.connect('mongodb://localhost:27017/userDB');
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
-  googleId: String
+  googleId: String,
+  facebookId: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -52,6 +54,7 @@ passport.deserializeUser((id, done) => {
   });
 });
 
+// Google OAtuh 2.0
 passport.use(new GoogleStrategy({
   clientID: process.env.CLIENT_ID,
   clientSecret: process.env.CLIENT_SECRET,
@@ -66,6 +69,21 @@ passport.use(new GoogleStrategy({
   }
 ));
 
+// Facebook OAuth 2.0
+passport.use(new FacebookStrategy({
+  clientID: process.env.FACEBOOK_ID,
+  clientSecret: process.env.FACEBOOK_SECRET,
+  callbackURL: "http://localhost:3000/auth/facebook/secrets"
+},
+  function (accessToken, refreshToken, profile, cb) {
+    console.log(profile);
+
+    User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
+
 // Rotas Get//
 app.get("/", (req, res) => {
   res.render("home");
@@ -75,8 +93,19 @@ app.get("/auth/google",
   passport.authenticate('google', { scope: ["profile"] })
 );
 
+app.get("/auth/facebook",
+  passport.authenticate('facebook', { scope: ["email"] })
+);
+
 app.get("/auth/google/secrets",
   passport.authenticate('google', { failureRedirect: "/login" }),
+  function (req, res) {
+    // Successful authentication, redirect secrets.
+    res.redirect("/secrets");
+  });
+
+app.get("/auth/facebook/secrets",
+  passport.authenticate('facebook', { failureRedirect: "/login" }),
   function (req, res) {
     // Successful authentication, redirect secrets.
     res.redirect("/secrets");
@@ -102,6 +131,10 @@ app.get("/secrets", (req, res) => {
   if (!req.isAuthenticated()) {
     res.redirect("/login");
   }
+});
+
+app.get("/submit", (req, res) => {
+
 });
 
 app.get("/logout", (req, res) => {
